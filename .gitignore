@@ -1,0 +1,22 @@
+# Prerequisites
+*.d
+
+# Object files
+*.o
+
+# Libraries
+*.lib
+*.a
+*.la
+*.lo
+
+# Shared objects
+*.so
+*.so.*
+*.dylib
+
+# Executables
+*.out
+
+# Debug files
+*.dSYM
