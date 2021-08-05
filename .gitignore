@@ -17,6 +17,7 @@
 
 # Executables
 *.out
+lst_tests
 
 # Debug files
 *.dSYM
