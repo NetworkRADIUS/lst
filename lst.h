@@ -93,8 +93,6 @@ lst_index_t	lst_num_elements(lst_t *lst) __attribute__((nonnull));
 
 /** Iterate over entries in LST
  *
- * @note If the LST is modified, the iterator should be considered invalidated.
- *
  * @param[in] lst	to iterate over.
  * @param[in] iter	Pointer to an iterator struct, used to maintain
  *			state between calls.
@@ -106,7 +104,14 @@ void		*lst_iter_init(lst_t *lst, lst_iter_t *iter);
 
 /** Get the next entry in an LST
  *
- * @note If the LST is modified, the iterator should be considered invalidated.
+ * @note If the LST is modified, the iterator can no longer be used,
+ * as the LST has been rearranged.  Using the iterator after an LST
+ * modification may cause crashes, or it may skip entries, or visit an
+ * entry multiple times.  If you need to delete entries while
+ * iterating over the tree, you should use a secondary data structure
+ * to store pointers to the entries.  Then once the iteration is done,
+ * loop over the secondary data structure, and delete the entries.
+ *
  *
  * @param[in] lst	to iterate over.
  * @param[in] iter	Pointer to an iterator struct, used to maintain

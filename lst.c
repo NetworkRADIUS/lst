@@ -37,12 +37,19 @@
 /*
  * Leftmost Skeleton Trees are defined in "Stronger Quickheaps" (Gonzalo Navarro,
  * Rodrigo Paredes, Patricio V. Poblete, and Peter Sanders) International Journal
- * of Foundations of Computer Science, November 2011. As the title suggests, it
- * is inspired by quickheaps, and indeed the underlying representation looks
- * like a quickheap.
+ * of Foundations of Computer Science, November 2011.
+ *
+ * http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.186.5910
+ *
+ * As the title suggests, it is inspired by quickheaps, and indeed the
+ * underlying representation looks like a quickheap.
  *
  * heap/priority queue operations are defined in the paper in terms of LST
  * operations.
+ *
+ * Performance tests show that LSTs can be significantly faster than
+ * priority heaps, and there are no cases where LSTs are slower than
+ * priority heaps.
  */
 
 typedef int	stack_index_t;

@@ -36,9 +36,9 @@
 #include <time.h>
 
 /*
- *	This counterintuitive #include gives these separately-compiled tests
- *	access to lst_t internals that lst.h doesn't reveal
- *	to those who #include it.
+ * This counterintuitive #include gives these separately-compiled
+ * tests access to elements of the opaque lst_t structure which are
+ * needed for the tests.
  */
 #include "lst.c"
 
