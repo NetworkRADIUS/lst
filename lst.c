@@ -120,7 +120,7 @@ struct lst_s {
  * 2. one can fetch and modify arbitrary stack items; when array elements must be
  *    moved to keep them contiguous, the pivot stack entries must change to match.
  */
-static int stack_alloc(pivot_stack_t *s)
+static __attribute__((nonnull)) int stack_alloc(pivot_stack_t *s)
 {
 	s->data = calloc(sizeof(lst_index_t), INITIAL_STACK_CAPACITY);
 	if (!s->data) {
@@ -137,7 +137,7 @@ static __attribute__((nonnull)) void stack_free(pivot_stack_t *s)
 	free(s->data);
 }
 
-static bool stack_expand(pivot_stack_t *s)
+static __attribute__((nonnull)) bool stack_expand(pivot_stack_t *s)
 {
 	lst_index_t	*n;
 	size_t		n_size = 2 * s->size;
