@@ -66,8 +66,8 @@ struct lst_s {
 	lst_index_t	num_elements;	//!< Number of elements in the LST
 	size_t		offset;		//!< Offset of heap index in element structure.
 	void		**p;		//!< Array of elements.
-	pivot_stack_t	*s;		//!< Stack of pivots, always with depth >= 1.
 	lst_cmp_t	cmp;		//!< Comparator function.
+	pivot_stack_t	s;		//!< Stack of pivots, always with depth >= 1.
 };
 
 #define index_addr(_lst, _data) ((uint8_t *)(_data) + (_lst)->offset)
@@ -76,7 +76,7 @@ struct lst_s {
 #define is_equivalent(_lst, _index1, _index2)	(index_reduce((_lst), (_index1) - (_index2)) == 0)
 #define item(_lst, _index)			((_lst)->p[index_reduce((_lst), (_index))])
 #define index_reduce(_lst, _index)		((_index) & ((_lst)->capacity - 1))
-#define pivot_item(_lst, _index)		item((_lst), stack_item((_lst)->s, (_index)))
+#define pivot_item(_lst, _index)		item((_lst), stack_item(&(_lst)->s, (_index)))
 
 #define unlikely(_x)	__builtin_expect((_x), 0)
 
@@ -120,27 +120,21 @@ struct lst_s {
  * 2. one can fetch and modify arbitrary stack items; when array elements must be
  *    moved to keep them contiguous, the pivot stack entries must change to match.
  */
-static pivot_stack_t	*stack_alloc(void)
+static int stack_alloc(pivot_stack_t *s)
 {
-	pivot_stack_t	*s;
-
-	s = calloc(sizeof(pivot_stack_t), 1);
-	if (!s) return NULL;
-
 	s->data = calloc(sizeof(lst_index_t), INITIAL_STACK_CAPACITY);
 	if (!s->data) {
-		free(s);
-		return NULL;
+		return -1;
 	}
+
 	s->depth = 0;
 	s->size = INITIAL_STACK_CAPACITY;
-	return s;
+	return 0;
 }
 
 static __attribute__((nonnull)) void stack_free(pivot_stack_t *s)
 {
 	free(s->data);
-	free(s);
 }
 
 static bool stack_expand(pivot_stack_t *s)
@@ -200,11 +194,10 @@ lst_t *_lst_alloc(lst_cmp_t cmp, size_t offset)
 		return NULL;
 	}
 
-	lst->s = stack_alloc();
-	if (!lst->s) goto cleanup;
+	if (stack_alloc(&lst->s) < 0) goto cleanup;
 
 	/* Initially the LST is empty and we start at the beginning of the array */
-	stack_push(lst->s, 0);
+	stack_push(&lst->s, 0);
 	lst->idx = 0;
 
 	lst->cmp = cmp;
@@ -215,7 +208,7 @@ lst_t *_lst_alloc(lst_cmp_t cmp, size_t offset)
 
 void lst_free(lst_t *lst)
 {
-	stack_free(lst->s);
+	stack_free(&lst->s);
 	free(lst->p);
 	free(lst);
 }
@@ -225,7 +218,7 @@ void lst_free(lst_t *lst)
  */
 static inline __attribute__((always_inline, nonnull)) stack_index_t lst_length(lst_t *lst, stack_index_t stack_index)
 {
-	return stack_depth(lst->s) - stack_index;
+	return stack_depth(&lst->s) - stack_index;
 }
 
 /*
@@ -237,7 +230,7 @@ static __attribute__((nonnull)) lst_index_t lst_size(lst_t *lst, stack_index_t s
 
 	if (stack_index == 0) return lst->num_elements;
 
-	reduced_right = index_reduce(lst, stack_item(lst->s, stack_index));
+	reduced_right = index_reduce(lst, stack_item(&lst->s, stack_index));
 	reduced_idx = index_reduce(lst, lst->idx);
 
 	if (reduced_idx <= reduced_right) return reduced_right - reduced_idx;	/* No wraparound--easy. */
@@ -252,7 +245,7 @@ static __attribute__((nonnull)) lst_index_t lst_size(lst_t *lst, stack_index_t s
  */
 static inline __attribute__((always_inline, nonnull)) void lst_flatten(lst_t *lst, stack_index_t stack_index)
 {
-	stack_pop(lst->s, stack_depth(lst->s) - stack_index);
+	stack_pop(&lst->s, stack_depth(&lst->s) - stack_index);
 }
 
 /*
@@ -283,12 +276,12 @@ static void bucket_add(lst_t *lst, stack_index_t stack_index, void *data)
 	 * so we save pivot moving for the end of the loop.
 	 */
 	for (stack_index_t rindex = 0; rindex < stack_index; rindex++) {
-		lst_index_t	prev_pivot_index = stack_item(lst->s, rindex + 1);
+		lst_index_t	prev_pivot_index = stack_item(&lst->s, rindex + 1);
 		bool		empty_bucket;
 
-		new_space = stack_item(lst->s, rindex);
+		new_space = stack_item(&lst->s, rindex);
 		empty_bucket = (new_space - prev_pivot_index) == 1;
-		stack_set(lst->s, rindex, new_space + 1);
+		stack_set(&lst->s, rindex, new_space + 1);
 
 		if (!empty_bucket) lst_move(lst, new_space, item(lst, prev_pivot_index + 1));
 
@@ -302,8 +295,8 @@ static void bucket_add(lst_t *lst, stack_index_t stack_index, void *data)
 	 * If it is the leftmost, the loop wasn't executed, but the fictitious
 	 * pivot isn't there, which is just as good.
 	 */
-	new_space = stack_item(lst->s, stack_index);
-	stack_set(lst->s, stack_index, new_space + 1);
+	new_space = stack_item(&lst->s, stack_index);
+	stack_set(&lst->s, stack_index, new_space + 1);
 	lst_move(lst, new_space, data);
 
 	lst->num_elements++;
@@ -316,10 +309,10 @@ static void bucket_add(lst_t *lst, stack_index_t stack_index, void *data)
 static void lst_indices_reduce(lst_t *lst)
 {
 	lst_index_t	reduced_idx = index_reduce(lst, lst->idx);
-	stack_index_t	depth = stack_depth(lst->s);
+	stack_index_t	depth = stack_depth(&lst->s);
 
 	for (stack_index_t i = 0; i < depth; i++) {
-		stack_set(lst->s, i, reduced_idx + stack_item(lst->s, i) - lst->idx);
+		stack_set(&lst->s, i, reduced_idx + stack_item(&lst->s, i) - lst->idx);
 	}
 	lst->idx = reduced_idx;
 }
@@ -365,7 +358,7 @@ static bool lst_expand(lst_t *lst)
 static inline __attribute__((always_inline, nonnull)) lst_index_t bucket_lwb(lst_t *lst, size_t stack_index)
 {
 	if (is_bucket(lst, stack_index)) return lst->idx;
-	return stack_item(lst->s, stack_index + 1) + 1;
+	return stack_item(&lst->s, stack_index + 1) + 1;
 }
 
 /*
@@ -373,7 +366,7 @@ static inline __attribute__((always_inline, nonnull)) lst_index_t bucket_lwb(lst
  */
 static inline __attribute__((always_inline, nonnull)) lst_index_t bucket_upb(lst_t *lst, size_t stack_index)
 {
-	return stack_item(lst->s, stack_index) - 1;
+	return stack_item(&lst->s, stack_index) - 1;
 }
 
 /*
@@ -394,7 +387,7 @@ static void partition(lst_t *lst, stack_index_t stack_index)
 	 * Hoare partition doesn't do the trivial case, so catch it here.
 	 */
 	if (is_equivalent(lst, low, high)) {
-		stack_push(lst->s, low);
+		stack_push(&lst->s, low);
 		return;
 	}
 
@@ -445,7 +438,7 @@ static void partition(lst_t *lst, stack_index_t stack_index)
 		lst_move(lst, h, pivot);
 	}
 
-	stack_push(lst->s, h);
+	stack_push(&lst->s, h);
 }
 
 /*
@@ -463,7 +456,7 @@ static void bucket_delete(lst_t *lst, stack_index_t stack_index, void *data)
 		for (;;) {
 			top = bucket_upb(lst, stack_index);
 			if (!is_equivalent(lst, location, top)) lst_move(lst, location, item(lst, top));
-			stack_set(lst->s, stack_index, top);
+			stack_set(&lst->s, stack_index, top);
 			if (stack_index == 0) break;
 			lst_move(lst, top, item(lst, top + 1));
 			stack_index--;
@@ -667,7 +660,7 @@ void *lst_iter_next(lst_t *lst, lst_iter_t *iter)
 {
 	if (unlikely(!lst)) return NULL;
 
-	if ((*iter + 1) >= stack_item(lst->s, 0)) return NULL;
+	if ((*iter + 1) >= stack_item(&lst->s, 0)) return NULL;
 	*iter += 1;
 
 	return item(lst, *iter);
