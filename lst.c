@@ -400,7 +400,7 @@ static void partition(lst_t *lst, stack_index_t stack_index)
 	}
 
 	/*
-	 * Hoare partition; on the avaerage, it does a third the swaps of
+	 * Hoare partition; on the average, it does a third the swaps of
 	 * Lomuto.
 	 */
 	l = low - 1;
